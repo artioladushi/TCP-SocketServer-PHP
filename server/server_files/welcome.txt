@@ -1,0 +1,2 @@
+Mirë se vini në serverin e Grupit 13.
+Ky file përdoret për testimin e komandës READ.
