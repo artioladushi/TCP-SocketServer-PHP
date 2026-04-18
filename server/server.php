@@ -34,3 +34,49 @@ $allowedExecCommands = [
         return empty($files) ? 'No files found.' : implode(', ', $files);
     },
 ];
+$server = stream_socket_server("tcp://{$SERVER_IP}:{$SERVER_PORT}", $errno, $errstr);
+
+if (!$server) {
+    die("Failed to start server: $errstr ($errno)\n");
+}
+
+stream_set_blocking($server, false);
+
+echo "TCP Server started on {$SERVER_IP}:{$SERVER_PORT}\n";
+echo "Files directory: {$FILES_DIR}\n";
+
+$clients = [];
+$clientStates = [];
+
+function sendLine($socket, string $message): void
+{
+    fwrite($socket, $message . PHP_EOL);
+}
+
+function getClientName($socket): string
+{
+    $name = stream_socket_get_name($socket, true);
+    return $name ?: 'unknown-client';
+}
+
+function sanitizeFilename(string $filename): string
+{
+    $filename = trim($filename);
+    $filename = basename($filename);
+    return preg_replace('/[^a-zA-Z0-9._-]/', '_', $filename);
+}
+
+function getHelpText(): string
+{
+    return implode(PHP_EOL, [
+        "Available commands:",
+        "LOGIN <username> <password>",
+        "MSG <text>",
+        "LIST",
+        "READ <filename>",
+        "WRITE <filename>|<content>      (full access only)",
+        "EXEC <time|pwd|whoami|ls>       (full access only)",
+        "HELP",
+        "QUIT"
+    ]);
+}
