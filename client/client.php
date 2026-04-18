@@ -15,3 +15,6 @@ echo "Connected to server {$SERVER_IP}:{$SERVER_PORT}\n";
 echo "Write commands and press Enter.\n";
 echo "Example: LOGIN admin admin123\n";
 echo "Type EXIT to close client.\n\n";
+
+stream_set_blocking($client, false);
+stream_set_blocking(STDIN, false);
