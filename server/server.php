@@ -80,3 +80,40 @@ function getHelpText(): string
         "QUIT"
     ]);
 }
+while (true) {
+    $readSockets = [$server];
+    foreach ($clients as $client) {
+        $readSockets[] = $client;
+    }
+
+    $write = null;
+    $except = null;
+
+    if (stream_select($readSockets, $write, $except, null) === false) {
+        break;
+    }
+
+    if (in_array($server, $readSockets, true)) {
+        $newClient = @stream_socket_accept($server, 0);
+        if ($newClient) {
+            stream_set_blocking($newClient, false);
+            $clientId = (int)$newClient;
+            $clients[$clientId] = $newClient;
+            $clientStates[$clientId] = [
+                'authenticated' => false,
+                'username' => null,
+                'role' => null,
+            ];
+
+            echo "New client connected: " . getClientName($newClient) . PHP_EOL;
+            sendLine($newClient, "Connected to Group13 TCP PHP Server");
+            sendLine($newClient, "Please login using: LOGIN <username> <password>");
+            sendLine($newClient, "Type HELP after login.");
+        }
+
+        $serverIndex = array_search($server, $readSockets, true);
+        if ($serverIndex !== false) {
+            unset($readSockets[$serverIndex]);
+        }
+    }
+}
