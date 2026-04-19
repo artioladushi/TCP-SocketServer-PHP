@@ -1,5 +1,3 @@
-Ky është një file tjetër për testim.
-Vetëm admin mund të shkruajë në file të serverit.
 <?php
 
 $SERVER_IP = '10.180.52.41';   // change this to real server IP for other devices
@@ -18,3 +16,53 @@ echo "Type EXIT to close client.\n\n";
 
 stream_set_blocking($client, false);
 stream_set_blocking(STDIN, false);
+stream_set_blocking(STDIN, false);
+
+while (true) {
+    $read = [$client, STDIN];
+    $write = null;
+    $except = null;
+
+    if (stream_select($read, $write, $except, null) === false) {
+        break;
+    }
+
+    foreach ($read as $r) {
+        if ($r === $client) {
+            $response = fgets($client);
+
+            if ($response === false) {
+                if (feof($client)) {
+                    echo "Server closed connection.\n";
+                    fclose($client);
+                    exit;
+                }
+                continue;
+            }
+
+            echo "[SERVER] " . $response;
+        }
+
+        if ($r === STDIN) {
+            $input = fgets(STDIN);
+            if ($input === false) {
+                continue;
+            }
+
+            $input = trim($input);
+
+            if ($input === '') {
+                continue;
+            }
+
+            if (strtoupper($input) === 'EXIT') {
+                fwrite($client, "QUIT\n");
+                fclose($client);
+                exit;
+            }
+
+            fwrite($client, $input . "\n");
+        }
+    }
+}
+
