@@ -219,5 +219,29 @@ while (true) {
             sendLine($clientSocket, "FILE_CONTENT_END");
             continue;
         }
+
+        
+         if (stripos($data, 'WRITE ') === 0) {
+            if ($clientInfo['role'] !== 'full') {
+                sendLine($clientSocket, "ERROR Permission denied. WRITE allowed only for full-access client.");
+                continue;
+            }
+
+            $payload = substr($data, 6);
+            $parts = explode('|', $payload, 2);
+
+            if (count($parts) < 2) {
+                sendLine($clientSocket, "ERROR Invalid WRITE format. Use: WRITE <filename>|<content>");
+                continue;
+            }
+
+            $filename = sanitizeFilename($parts[0]);
+            $content = $parts[1];
+            $fullPath = $FILES_DIR . DIRECTORY_SEPARATOR . $filename;
+
+            file_put_contents($fullPath, $content . PHP_EOL, FILE_APPEND);
+            sendLine($clientSocket, "OK Data written to {$filename}");
+            continue;
+        }
       }
 }
