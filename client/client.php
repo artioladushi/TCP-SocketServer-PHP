@@ -1,68 +1,119 @@
 <?php
 
-$SERVER_IP = '10.180.52.41';   // change this to real server IP for other devices
+$SERVER_IP = '192.168.100.113';   // ndryshoje me IP reale të serverit në rrjet
 $SERVER_PORT = 5000;
 
-$client = stream_socket_client("tcp://{$SERVER_IP}:{$SERVER_PORT}", $errno, $errstr, 30);
+$socket = stream_socket_client("tcp://{$SERVER_IP}:{$SERVER_PORT}", $errno, $errstr, 30);
 
-if (!$client) {
+if (!$socket) {
     die("Connection failed: $errstr ($errno)\n");
 }
 
-echo "Connected to server {$SERVER_IP}:{$SERVER_PORT}\n";
-echo "Write commands and press Enter.\n";
-echo "Example: LOGIN admin admin123\n";
-echo "Type EXIT to close client.\n\n";
+echo "U lidh me serverin ({$SERVER_IP}:{$SERVER_PORT})\n";
 
-stream_set_blocking($client, false);
-stream_set_blocking(STDIN, false);
-stream_set_blocking(STDIN, false);
+function sendCommand($socket, string $cmd): void
+{
+    fwrite($socket, $cmd . PHP_EOL);
+}
 
-while (true) {
-    $read = [$client, STDIN];
-    $write = null;
-    $except = null;
+function readResponse($socket): void
+{
+    while (($line = fgets($socket)) !== false) {
+        $line = trim($line);
 
-    if (stream_select($read, $write, $except, null) === false) {
-        break;
-    }
-
-    foreach ($read as $r) {
-        if ($r === $client) {
-            $response = fgets($client);
-
-            if ($response === false) {
-                if (feof($client)) {
-                    echo "Server closed connection.\n";
-                    fclose($client);
-                    exit;
-                }
-                continue;
-            }
-
-            echo "[SERVER] " . $response;
+        if ($line === 'END') {
+            break;
         }
 
-        if ($r === STDIN) {
-            $input = fgets(STDIN);
-            if ($input === false) {
-                continue;
-            }
-
-            $input = trim($input);
-
-            if ($input === '') {
-                continue;
-            }
-
-            if (strtoupper($input) === 'EXIT') {
-                fwrite($client, "QUIT\n");
-                fclose($client);
-                exit;
-            }
-
-            fwrite($client, $input . "\n");
-        }
+        echo "SERVER -> {$line}\n";
     }
 }
 
+function showMenu(): void
+{
+    echo "\n--- MENU ---\n";
+    echo "1. Login\n";
+    echo "2. List files\n";
+    echo "3. Read file\n";
+    echo "4. Write file (admin)\n";
+    echo "5. Execute command (admin)\n";
+    echo "6. Send message\n";
+    echo "7. Help\n";
+    echo "8. Exit\n";
+    echo "Zgjedhja: ";
+}
+
+readResponse($socket);
+
+while (true) {
+    showMenu();
+    $choice = trim(fgets(STDIN));
+
+    switch ($choice) {
+        case '1':
+            echo "Username: ";
+            $user = trim(fgets(STDIN));
+
+            echo "Password: ";
+            $pass = trim(fgets(STDIN));
+
+            sendCommand($socket, "LOGIN {$user} {$pass}");
+            readResponse($socket);
+            break;
+
+        case '2':
+            sendCommand($socket, "LIST");
+            readResponse($socket);
+            break;
+
+        case '3':
+            echo "File name: ";
+            $file = trim(fgets(STDIN));
+
+            sendCommand($socket, "READ {$file}");
+            readResponse($socket);
+            break;
+
+        case '4':
+            echo "File name: ";
+            $file = trim(fgets(STDIN));
+
+            echo "Content: ";
+            $content = trim(fgets(STDIN));
+
+            sendCommand($socket, "WRITE {$file}|{$content}");
+            readResponse($socket);
+            break;
+
+        case '5':
+            echo "Command (time/pwd/whoami/ls): ";
+            $cmd = trim(fgets(STDIN));
+
+            sendCommand($socket, "EXEC {$cmd}");
+            readResponse($socket);
+            break;
+
+        case '6':
+            echo "Message: ";
+            $msg = trim(fgets(STDIN));
+
+            sendCommand($socket, "MSG {$msg}");
+            readResponse($socket);
+            break;
+
+        case '7':
+            sendCommand($socket, "HELP");
+            readResponse($socket);
+            break;
+
+        case '8':
+            sendCommand($socket, "QUIT");
+            readResponse($socket);
+            fclose($socket);
+            echo "Klienti u mbyll.\n";
+            exit;
+
+        default:
+            echo "Opsion i pavlefshëm.\n";
+    }
+}
