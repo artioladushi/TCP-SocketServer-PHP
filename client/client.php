@@ -16,6 +16,7 @@ echo "Type EXIT to close client.\n\n";
 
 stream_set_blocking($client, false);
 stream_set_blocking(STDIN, false);
+stream_set_blocking(STDIN, false);
 
 while (true) {
     $read = [$client, STDIN];
@@ -64,3 +65,4 @@ while (true) {
         }
     }
 }
+

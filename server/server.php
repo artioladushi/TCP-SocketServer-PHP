@@ -116,6 +116,134 @@ while (true) {
             unset($readSockets[$serverIndex]);
         }
     }
+      foreach ($readSockets as $clientSocket) {
+        $clientId = (int)$clientSocket;
+        $data = fgets($clientSocket);
+
+        if ($data === false) {
+            if (feof($clientSocket)) {
+                echo "Client disconnected: " . getClientName($clientSocket) . PHP_EOL;
+                fclose($clientSocket);
+                unset($clients[$clientId], $clientStates[$clientId]);
+            }
+            continue;
+        }
+
+        $data = trim($data);
+        if ($data === '') {
+            continue;
+        }
+
+        $clientInfo = &$clientStates[$clientId];
+        $remoteName = getClientName($clientSocket);
+
+        echo "[{$remoteName}] {$data}" . PHP_EOL;
+
+        if (stripos($data, 'LOGIN ') === 0) {
+            $parts = preg_split('/\s+/', $data, 3);
+
+            if (count($parts) < 3) {
+                sendLine($clientSocket, "ERROR Invalid login format. Use: LOGIN <username> <password>");
+                continue;
+            }
+
+            $username = $parts[1];
+            $password = $parts[2];
+
+            if (!isset($users[$username]) || $users[$username]['password'] !== $password) {
+                sendLine($clientSocket, "ERROR Invalid username or password.");
+                continue;
+            }
+
+            $clientInfo['authenticated'] = true;
+            $clientInfo['username'] = $username;
+            $clientInfo['role'] = $users[$username]['role'];
+
+            sendLine($clientSocket, "OK Login successful.");
+            sendLine($clientSocket, "Logged in as {$username} with role {$clientInfo['role']}.");
+            sendLine($clientSocket, getHelpText());
+            continue;
+        }
+
+        if (!$clientInfo['authenticated']) {
+            sendLine($clientSocket, "ERROR Please login first.");
+            continue;
+        }
+
+        if (strcasecmp($data, 'HELP') === 0) {
+            sendLine($clientSocket, getHelpText());
+            continue;
+        }
+
+        if (strcasecmp($data, 'QUIT') === 0) {
+            sendLine($clientSocket, "Bye.");
+            fclose($clientSocket);
+            unset($clients[$clientId], $clientStates[$clientId]);
+            echo "Client quit: {$remoteName}" . PHP_EOL;
+            continue;
+        }
+
+        if (stripos($data, 'MSG ') === 0) {
+            $message = substr($data, 4);
+            sendLine($clientSocket, "SERVER RECEIVED MESSAGE: {$message}");
+            continue;
+        }
+
+        if (strcasecmp($data, 'LIST') === 0) {
+            $files = scandir($FILES_DIR);
+            $files = array_values(array_filter($files, fn($f) => $f !== '.' && $f !== '..'));
+
+            if (empty($files)) {
+                sendLine($clientSocket, "No files found.");
+            } else {
+                sendLine($clientSocket, "FILES: " . implode(', ', $files));
+            }
+            continue;
+        }
+
+        if (stripos($data, 'READ ') === 0) {
+            $filename = sanitizeFilename(substr($data, 5));
+            $fullPath = $FILES_DIR . DIRECTORY_SEPARATOR . $filename;
+
+            if (!file_exists($fullPath)) {
+                sendLine($clientSocket, "ERROR File not found.");
+                continue;
+            }
+
+            $content = file_get_contents($fullPath);
+            sendLine($clientSocket, "FILE_CONTENT_BEGIN");
+            foreach (explode("\n", $content) as $line) {
+                sendLine($clientSocket, rtrim($line, "\r"));
+            }
+            sendLine($clientSocket, "FILE_CONTENT_END");
+            continue;
+        }
+
+        
+         if (stripos($data, 'WRITE ') === 0) {
+            if ($clientInfo['role'] !== 'full') {
+                sendLine($clientSocket, "ERROR Permission denied. WRITE allowed only for full-access client.");
+                continue;
+            }
+
+            $payload = substr($data, 6);
+            $parts = explode('|', $payload, 2);
+
+            if (count($parts) < 2) {
+                sendLine($clientSocket, "ERROR Invalid WRITE format. Use: WRITE <filename>|<content>");
+                continue;
+            }
+
+            $filename = sanitizeFilename($parts[0]);
+            $content = $parts[1];
+            $fullPath = $FILES_DIR . DIRECTORY_SEPARATOR . $filename;
+
+            file_put_contents($fullPath, $content . PHP_EOL, FILE_APPEND);
+            sendLine($clientSocket, "OK Data written to {$filename}");
+            continue;
+        }
+      }
+}
 }
 
 foreach ($readSockets as $clientSocket) {
